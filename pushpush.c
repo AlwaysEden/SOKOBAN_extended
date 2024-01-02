@@ -5,12 +5,12 @@
 #include <string.h>
 
 #define GRID_SIZE 20 
-#define NUM_CIRCLES 5
+#define NUM_IMAGES 5
 #define ADDITIONAL_LABELS 8
 
 typedef enum ID{
 	BALL = 10,
-	HURDLE = 100,
+	WALL = 100,
 	BASE = 110
 }ID;
 
@@ -40,14 +40,21 @@ display_board()
         }
         printf("===========\n") ;
 }
-
-static void draw_circle(cairo_t *cr, int x, int y, int size) {
-    double radius = size / 2.0;
-    double center_x = x + radius;
-    double center_y = y + radius;
-
-    cairo_arc(cr, center_x, center_y, radius, 0, 2 * G_PI);
-    cairo_fill(cr);
+static void draw_image(cairo_t *cr, int x, int y, int width, int height, const gchar *image_path) {
+        cairo_surface_t *image_surface = cairo_image_surface_create_from_png(image_path); // Use the appropriate image format
+        if (cairo_surface_status(image_surface) == CAIRO_STATUS_SUCCESS) {
+                cairo_save(cr);
+                cairo_scale(cr, (double)(width) / (cairo_image_surface_get_width(image_surface)),(double)(height) / (cairo_image_surface_get_height(image_surface)));
+                //cairo_set_source_surface(cr, image_surface, center_x / ((double)width / cairo_image_surface_get_width(image_surface)),center_y / ((double)height / cairo_image_surface_get_height(image_surface)));
+                //cairo_set_source_surface(cr, image_surface, x, y);
+                int modified_x = (int)(x/ ( (double)width/cairo_image_surface_get_width(image_surface)));
+                int modified_y = (int)(y/ ( (double)height/cairo_image_surface_get_height(image_surface)));
+                cairo_set_source_surface(cr, image_surface, modified_x, modified_y);
+                cairo_stroke(cr);
+                cairo_paint(cr);
+                cairo_restore(cr);  // 이전 상태로 복원
+                cairo_surface_destroy(image_surface);
+    }
 }
 
 static gboolean draw_callback(GtkWidget *widget, cairo_t *cr, gpointer data) {
@@ -63,25 +70,58 @@ static gboolean draw_callback(GtkWidget *widget, cairo_t *cr, gpointer data) {
             int y = j * cell_size;
 
             // Draw cell outline
+	    cairo_set_source_rgb(cr, 0, 0, 0);  // 테두리 색상을 검정색으로 설정
             cairo_rectangle(cr, x, y, cell_size, cell_size);
             cairo_stroke(cr);
-        }
+
+            // Draw cell background
+            cairo_set_source_rgb(cr, 0.6, 0.6, 0.4);  // 배경색 설정
+            cairo_rectangle(cr, x, y, cell_size, cell_size);
+            cairo_fill(cr);
+       	}
     }
 
-    // Draw random circles
+    // Draw random images
     
     memset(board, 0, GRID_SIZE * GRID_SIZE);
-	balls = (object_data *)malloc(sizeof(object_data) * NUM_CIRCLES);
-    cairo_set_source_rgb(cr, 1, 0, 0); // Set circle color to red
-    for (int i = 0; i < NUM_CIRCLES; ++i) {
-        int x = g_rand_int_range(g_rand_new(), 4, (GRID_SIZE-1)-4) * cell_size;
-        int y = g_rand_int_range(g_rand_new(), 4, (GRID_SIZE-1)-4) * cell_size;
-        draw_circle(cr, x, y, cell_size);
-	g_print("(x = %d, y = %d\n",x,y);
-	board[(y/2)/10][(x/2)/10] = BALL;
-	balls[i].id = BALL;
-	balls[i].x = (x/2)/10;
-	balls[i].y = (y/2)/10;
+    balls = (object_data *)malloc(sizeof(object_data) * NUM_IMAGES);
+    gchar *ball_path = "./image/basketball.png"; 
+    for(int i = 0; i < NUM_IMAGES; i++){
+        int img_x = g_rand_int_range(g_rand_new(), 4, (GRID_SIZE-1)-4)*cell_size;
+        int img_y = g_rand_int_range(g_rand_new(), 4, ((GRID_SIZE-1)-4))*cell_size;
+        int img_width = cell_size; 
+        int img_height = cell_size; 
+        draw_image(cr, img_x, img_y, img_width, img_height, ball_path);
+	
+	board[(img_y/2)/10][(img_x/2)/10] = BALL;
+        balls[i].id = BALL;
+        balls[i].x = (img_x/2)/10;
+        balls[i].y = (img_y/2)/10;
+    } 
+    
+    display_board();
+
+    gchar *wall_path = "./image/wall.png";
+    for(int i = 0; i < NUM_IMAGES; i++){
+        int img_x = g_rand_int_range(g_rand_new(), 4, (GRID_SIZE-1)-4)*cell_size;
+        int img_y = g_rand_int_range(g_rand_new(), 4, ((GRID_SIZE-1)-4))*cell_size;
+        int img_width = cell_size; 
+        int img_height = cell_size;
+	
+	if(img_x < img_y){
+		for(int j = 0; j < 3; j++){
+			int alpha = j*cell_size;
+       			draw_image(cr, img_x+alpha, img_y, img_width, img_height, wall_path);
+
+			board[(img_y/2)/10][((img_x+alpha)/2)/10] = WALL;
+		}
+	}else{
+		for(int j = 0; j < 3; j++){
+			int alpha = j*cell_size;
+			draw_image(cr, img_x, img_y+alpha,img_width, img_height, wall_path);
+			board[( (img_y+alpha)/2)/10][((img_x)/2)/10] = WALL;
+		}
+	}
     }
     display_board();
 /*
@@ -121,8 +161,6 @@ static void activate(GtkApplication *app, gpointer user_data) {
 
     g_signal_connect(G_OBJECT(draw_area), "draw", G_CALLBACK(draw_callback), NULL);
 	
-    GtkWidget *image = gtk_image_new_from_file("./ball.png");  // Replace with the actual path to your image
-    gtk_grid_attach(GTK_GRID(grid), image, 0, 0, 1, 1);
     gtk_widget_show_all(window);
 }
 

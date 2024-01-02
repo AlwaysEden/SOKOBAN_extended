@@ -1,16 +1,45 @@
 #include <gtk/gtk.h>
 #include <glib/grand.h>
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
 
-#define GRID_SIZE 40
+#define GRID_SIZE 20 
 #define NUM_CIRCLES 5
 #define ADDITIONAL_LABELS 8
 
 typedef enum ID{
 	BALL = 10,
-	HURDLE = 100
+	HURDLE = 100,
+	BASE = 110
 }ID;
 
+typedef struct object_data{
+	int id;
+	int x,y;
+}object_data;
+
+object_data *players;
+object_data *balls;
+
 int board[GRID_SIZE][GRID_SIZE];
+
+void
+display_board()
+{
+        printf("===========\n") ;
+        for (int i = 0; i < GRID_SIZE; i++) {
+                for (int j = 0; j < GRID_SIZE; j++) {
+                        if (board[i][j] == 0) {
+                                printf("+ ") ;
+                        } else {
+                                printf("%d ", board[i][j]) ;
+                        }
+                }
+                printf("\n") ;
+        }
+        printf("===========\n") ;
+}
 
 static void draw_circle(cairo_t *cr, int x, int y, int size) {
     double radius = size / 2.0;
@@ -40,15 +69,21 @@ static gboolean draw_callback(GtkWidget *widget, cairo_t *cr, gpointer data) {
     }
 
     // Draw random circles
+    
     memset(board, 0, GRID_SIZE * GRID_SIZE);
+	balls = (object_data *)malloc(sizeof(object_data) * NUM_CIRCLES);
     cairo_set_source_rgb(cr, 1, 0, 0); // Set circle color to red
     for (int i = 0; i < NUM_CIRCLES; ++i) {
         int x = g_rand_int_range(g_rand_new(), 4, (GRID_SIZE-1)-4) * cell_size;
         int y = g_rand_int_range(g_rand_new(), 4, (GRID_SIZE-1)-4) * cell_size;
+        draw_circle(cr, x, y, cell_size);
 	g_print("(x = %d, y = %d\n",x,y);
 	board[(y/2)/10][(x/2)/10] = BALL;
-        draw_circle(cr, x, y, cell_size);
+	balls[i].id = BALL;
+	balls[i].x = (x/2)/10;
+	balls[i].y = (y/2)/10;
     }
+    display_board();
 /*
     // Draw additional content on the right side
     cairo_set_source_rgb(cr, 0, 0, 1); // Set color to blue
@@ -85,7 +120,9 @@ static void activate(GtkApplication *app, gpointer user_data) {
     gtk_container_add(GTK_CONTAINER(window), draw_area);
 
     g_signal_connect(G_OBJECT(draw_area), "draw", G_CALLBACK(draw_callback), NULL);
-
+	
+    GtkWidget *image = gtk_image_new_from_file("./ball.png");  // Replace with the actual path to your image
+    gtk_grid_attach(GTK_GRID(grid), image, 0, 0, 1, 1);
     gtk_widget_show_all(window);
 }
 
@@ -97,7 +134,10 @@ int main(int argc, char **argv) {
     g_signal_connect(app, "activate", G_CALLBACK(activate), NULL);
     status = g_application_run(G_APPLICATION(app), argc, argv);
     g_object_unref(app);
+	
+    gtk_main();
 
+    free(balls);
     return status;
 }
 
